@@ -19,7 +19,7 @@ wery well stop a citation error this program misses.
 ## Details
 
 
-nyccc is a python tool that parses and cross-checks academic name-year (aka. parenthetical referencing aka. Harvard referencing) citations from your
+nyccc is a tool written in Python that parses and cross-checks academic name-year (aka. parenthetical referencing aka. Harvard referencing) citations from your
 article, manuscript, or thesis text documents and references with your
 bibliography. 
 
@@ -57,7 +57,7 @@ Bibliography text is expected to have one reference per row. Also only the
 part upto the publication year is used when matching citations to
 references:        
 
- * (Athens 2000) would match reference
+ * ```(Athens 2000)``` would match reference
   * ```"Athens, P. 2000. The book."```
 	( -> ```"Athens, P. 2000"``` ), **but not**
   * ```"[2000a] Athens, P. 2000. The book."```
