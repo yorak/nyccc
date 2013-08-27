@@ -9,7 +9,7 @@ Copyright (C) 2013
 @author: Jussi Rasku
 
 This program is free software with GNU General Public License v3.
-See <http://www.gnu.org/licenses/>.
+See <http://www.gnu.org/licenses/> for details.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY. So be warned that your Professor may 
