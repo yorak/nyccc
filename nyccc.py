@@ -187,10 +187,16 @@ def _find_cite_in_bib(authors, year, bib_keys, full_bib=None):
     
     for ref in bib_keys:
         match = True
+        
+        # Require author order
+        author_search_pos = 0
         for author in authors:
-            if author not in ref:
+            search_result = ref.find(author, author_search_pos)
+            if search_result==-1:
                 match = False
                 break
+            author_search_pos = search_result;
+            
         if match and year in ref:
             cite_matched = True
             matched_refs.append(ref)
@@ -261,7 +267,7 @@ def init_regexps(
     #(?:(?:et al\.)|(?:ym\.))
     if etal_word_list:
         etal_abbr = r"(?:"+"|".join([re.escape(pw) for pw in etal_word_list])+r")"
-    
+        
     # Apostrophes like in "D'Alembert" and hyphens like in "Flycht-Eriksson".
     author = r"([A-Z][a-zA-Z'`-]+)(?:'s)?"
     # " 1990" or "(1990b)" or "1990."
@@ -305,7 +311,7 @@ def get_bib_from_file(filename, verbosity=0):
         line = src.readline()
         if not line:
             break
-            
+        
         #line = unicode(line)
         #nonunicode_line = _strip_accents(line).strip()
         #nonunicode_line = line.decode('utf8', 'ignore').encode('ascii', 'ignore')
@@ -313,19 +319,42 @@ def get_bib_from_file(filename, verbosity=0):
         if nonunicode_line != "":
             bib.append(nonunicode_line)
     return bib
+
+# Parse textual citation
+def parse_citet(citationstr):
+    year = yearre.findall(citationstr)[0]
+    complete = False
+    posfixed_authors = authorre.findall( citationstr )
+    tcite = (posfixed_authors, year, complete)
     
-def get_cites_from_file(filename, mutlicite_sep, eat_suffix_cnt=0, max_cites=None, verbosity=0):
+    return tcite
+
+
+def parse_citep(citationstr):
+    global citere
+    global authorre
+    
+    cres = citere.search(citationstr)
+
+    if not cres or len(cres.groups())<2: 
+        return None
+    
+    authors = authorre.findall( cres.group(0) )
+    year = cres.group(2)
+    complete = True
+    pcite = (authors, year, complete)
+    
+    return pcite
+        
+def get_cites_from_file(filename, mutlicite_sep, max_cites=None, verbosity=0):
     """ Read the text file that has name-year style citations. Returns 
     the detected citations. 
     
     filename
         the file to read
     mutlicite_sep
-        parenthesis pair can contain be multiple cites if they are separated
-         with this char (or string)
-    eat_suffix_cnt
-        this many characters are removed from the end of authors names for
-         names parsed straight from the text (not in parenthesis).
+        parenthesis can contain be multiple cites if they are separated
+         with the chars (or strings) in this list
     max_cites
         specify how many citations are read before stopping.
     verbosity
@@ -358,15 +387,13 @@ def get_cites_from_file(filename, mutlicite_sep, eat_suffix_cnt=0, max_cites=Non
         textcite_candidates = textcitere.finditer(nonunicode_line)
         
         for tc_candidate in textcite_candidates:
+            tcite_text = tc_candidate.group(0)
             if verbosity > 2:
                 print "Detected a text citation:" 
-                print tc_candidate.group(0)
-                
-            text_cite_text = tc_candidate.group(0)
-            year = yearre.findall(text_cite_text)[0]
-            complete = False
-            posfixed_authors = authorre.findall( text_cite_text )
-            tcite = ([author[:-eat_suffix_cnt] for author in posfixed_authors], year, complete)
+                print tcite_text
+            
+            # Parse the text for a citation
+            tcite = parse_citet(tcite_text)
             allcites.append(tcite)
             counter += 1
             
@@ -382,27 +409,34 @@ def get_cites_from_file(filename, mutlicite_sep, eat_suffix_cnt=0, max_cites=Non
             
             if verbosity > 2:
                 print "Detected something that seems to be a citation:" 
-                print ny_candidate
-            
-            cites = []
-            for scc in ny_candidate[0].split(mutlicite_sep):
-                cres = citere.search(scc)
-
-                if not cres or len(cres.groups())<2: 
-                    continue
+                print ny_candidate[0]
                 
-                authors = authorre.findall( cres.group(0) )
-                year = cres.group(2)
-                complete = True
-                pcite = (authors, year, complete)
-                cites.append(pcite)
-                allcites.append(pcite)
-                counter += 1
+            predetected_author_count = len(authorre.findall( ny_candidate[0] ))
+            detected_author_count  = 0
+
+            # Citations in parenthesis (as opposed to citations within text)            
+            #  are parsed here
+            cites = []
+            for scc in re.split( "|".join(mutlicite_sep), ny_candidate[0]):
+                pcite = parse_citep(scc)
+                if pcite:
+                    detected_author_count += len(pcite[0])
+                    cites.append(pcite)
+                    allcites.append(pcite)
+                    counter += 1
             
-            if verbosity > 2:
+            # Just some output
+            if (verbosity==2 and detected_author_count!=predetected_author_count):
+                print "Detected something that seems to be a citation:" 
+                print ny_candidate[0]
                 print "Extracted citations:" 
                 print cites
                 print
+            elif (verbosity>2):
+                print "Extracted citations:" 
+                print cites
+                print
+                
                 
     return allcites
     
@@ -445,16 +479,23 @@ def cross_check(cites, bib, suffix_eat_cnt=0):
     print
     for cite in cites:
         authors, year, complete = cite
-        
-        # Complete author names, so we require a comma before the initials
-        #if complete:
-        #    authors = [author+"," for author in authors]            
-        
-        # Find the citations in the bibliography
+    
+        # Check if authors with the correct year is in bibliography (in right oder)
         cite_has_target, refs = _find_cite_in_bib(authors, year, bib_keys, bib)
+        
+        # For incomplete (text based) references, allow some characters to 
+        #  be eaten from the end of the author names
+        if not cite_has_target and not complete:
+            for eat in range(1, suffix_eat_cnt+1):
+                authors_wo_suffix = [author[:-eat] for author in authors]
+                # Find the citations in the bibliography
+                cite_has_target, refs = _find_cite_in_bib(authors_wo_suffix, year, bib_keys, bib)
+                if cite_has_target:
+                    break
+                
         if cite_has_target:
             if len(refs)>1:
-                print "Citation (%s) is not unique, it can be any of these..." % _cite_to_str(cite)                
+                print "Citation (%s) might not be unique, alternatives..." % _cite_to_str(cite)                
                 for ref in refs:
                     fullref = key_to_bib[ref] 
                     #print fullref 
@@ -541,10 +582,9 @@ def main():
     print "Detected problems:"
     missing_ref_cnt, missing_cite_cnt = cross_check(ucites, bib, suffix_eat_cnt)
     
-    if verbosity > 0:      
-        num_cites = len(ucites)    
-        num_refs = len(bib)   
-        
+    num_cites = len(ucites)    
+    num_refs = len(bib)  
+    if verbosity > 0 and num_cites>0:              
         print "Summary:"
         print "No reference for citation: %d/%d (%.2f%%)" % \
             (missing_ref_cnt, num_cites, 100.0*missing_ref_cnt/num_cites)

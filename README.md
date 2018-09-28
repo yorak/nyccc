@@ -9,7 +9,7 @@ Copyright (C) 2013
 @author: Jussi Rasku
 
 This program is free software with GNU General Public License v3.
-See <http://www.gnu.org/licenses/> for details.
+See <http://www.gnu.org/licenses/>.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY. So be warned that your Professor may 
@@ -79,6 +79,7 @@ Call the script with ```-h``` switch to get command line usage info.
 
 ### Limitations
 
+ - Only UTF-8 text files are supported. Please use some text editor to convert your files to use this text encoding.
  - Only citations and references with years 1800-2099 are supported
  - ```"previous sentence. Before Platon (2000) discovered ..."``` would produce a invalid citation
 	-> ```([Before, Platon], (2000))```, because ```"Before"``` seems to be a lot like a persons name
@@ -87,7 +88,7 @@ Call the script with ```-h``` switch to get command line usage info.
     ```(European Union publications 2001)``` is a valid citation, but not
     100% correctly matched with the corresponding reference.
  - Numbered aka. ACS style is not supported. 
-
+ - Unit testing is desperately needed. The code is quite fragile and the domain is fraught with special cases. Pull requests are welcome.
     
 ## Example 1
 
