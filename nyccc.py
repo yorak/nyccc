@@ -131,6 +131,7 @@ import re
 import os
 import argparse
 from collections import Counter
+import codecs
 
 from unicodedata import normalize, category
 
@@ -164,7 +165,8 @@ likere = None
 citere = None
 
 def _strip_accents(s):
-    return str(''.join(c for c in normalize('NFD', s) if category(c) != 'Mn'))
+    #print s.encode('utf8')
+    return str(u''.join(c for c in normalize('NFD', s) if category(c) != u'Mn'))
 
 def _bib_to_key(bibref):
     global yearre
@@ -297,14 +299,17 @@ def get_bib_from_file(filename, verbosity=0):
     verbosity
         change the output detail level
     """
-    src = open(filename, 'r')
+    src = codecs.open(filename, 'r',  'utf-8')
     bib = []
     while 1:
         line = src.readline()
         if not line:
             break
             
-        nonunicode_line = _strip_accents(unicode(line)).strip()
+        #line = unicode(line)
+        #nonunicode_line = _strip_accents(line).strip()
+        #nonunicode_line = line.decode('utf8', 'ignore').encode('ascii', 'ignore')
+        nonunicode_line = normalize('NFKD', line.strip()).encode('ascii', 'ignore')
         if nonunicode_line != "":
             bib.append(nonunicode_line)
     return bib
@@ -335,7 +340,7 @@ def get_cites_from_file(filename, mutlicite_sep, eat_suffix_cnt=0, max_cites=Non
     if not (textcitere and authorre and yearre and likere and citere):
        init_regexps()
     
-    src = open(filename, 'r')
+    src = codecs.open(filename, 'r',  'utf-8')
     allcites = []
     counter = 0
     while 1:
@@ -343,7 +348,12 @@ def get_cites_from_file(filename, mutlicite_sep, eat_suffix_cnt=0, max_cites=Non
         if not line or (max_cites and counter>max_cites):
             break
             
-        nonunicode_line = _strip_accents(unicode(line))
+        #nonunicode_line = line.decode('utf8', 'ignore').encode('ascii', 'ignore')
+        #unicode_line = unicode(line)
+        #nonunicode_line = _strip_accents(unicode_line)
+        nonunicode_line = normalize('NFKD', line.strip()).encode('ascii', 'ignore')
+        #print nonunicode_line
+        
         nameyear_candidates = likere.findall(nonunicode_line)
         textcite_candidates = textcitere.finditer(nonunicode_line)
         
@@ -490,10 +500,9 @@ def read_files(parsed_args):
     itf = parsed_args['textfile']
     ibf = parsed_args['bibfile']
     mcs = parsed_args['multi_cite_sep'] 
-    sec = parsed_args['suffix_eat_cnt']
     verbosity = parsed_args['verbosity']
     
-    cites = get_cites_from_file(itf, mcs, sec, verbosity=verbosity)    
+    cites = get_cites_from_file(itf, mcs, verbosity=verbosity)    
     bib = get_bib_from_file(ibf, verbosity=verbosity)    
     ucites = _unique(cites)
     cites.sort()
