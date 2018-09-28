@@ -93,7 +93,7 @@ Call the script with ```-h``` switch to get command line usage info.
 ## Example 1
 
     
-```
+```bash
 $ nyccc.py thesis.txt bib.txt -m "/" -a "och" -a "und" -e 2 -v 2
 ```
 	
@@ -102,7 +102,7 @@ what this command does, is find citations in ```thesis.txt``` and cross check th
          
 ## Example 2 
 
-```
+```bash
 $ nyccc.py vkirja.txt llue.txt -a "ja" -e 3 -p ""
 ```
 	
@@ -112,7 +112,7 @@ finnish language uses word suffixes a lot, rather agressive suffix
 removal (3) is used. Also the page numbers in citations are given 
 without the "p." prefix. This produces the output:
 
-
+```
 	Read from files:
 	#cites: 861
 	#unique cites: 355
@@ -134,3 +134,40 @@ without the "p." prefix. This produces the output:
 	Summary:
 	No reference for citation: 41/355 (11.55%)
 	Reference was not cited: 60/295 (20.34%)
+```
+
+## Example 2 
+
+```bash
+$ nyccc.py thesis.txt bibliography.txt -m ";" -m "cited in" -m "quoted by" -p ":" -t "et al." -e 0
+```
+
+In this example the citations that are in english and of format ```(Dorneyei 2007:202; Aquilar 2018)```, where the part after the colon is the page reference. Also, note that the strings "cited in" and "quoted by" are interpreted as citation separators, and thus ```(Dorneyei 2007 as cited in Aquilar 2018)``` is correctly parsed as two separate citations.
+
+```
+	Read from files:
+	#cites: 329
+	#unique cites: 207
+	#references: 118
+
+	Detected problems:
+
+	No reference for citation ((Aquilar 2018))
+	...
+	No reference for citation ((Derwing 1981))
+	No reference for citation ((Dewel... 1859))
+	No reference for citation ((Dorneyei 2007))
+	...
+	Citation ((Lax 2006)) might not be unique, alternatives...
+		Huhta, M., Johnson, E., Lax, U., Hantula, S. (2006). Tyoelam...'
+		Lax, U. (2006). Tyoelamaan valmentava kieltenopetus ammattio...'
+	...
+	No reference for citation ((White 1981))
+
+	Reference 'Common European Framework of reference for languag...' is not cited
+	...
+	Reference 'Widdowson, H.G. (1987). The roles of teacher and l...' is not cited
+	...
+```
+
+
