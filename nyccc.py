@@ -139,9 +139,11 @@ from unicodedata import normalize, category
 # DEFAULT SETTINGS #
 ####################
 
-MULTICITE_DELIMETER = ";"
+MULTICITE_DELIMETER = [";"]
 AND_WORDS = ["and"]
-PAGE_NUM_ABBR = "p."
+PAGE_NUM_ABBR_WORDS = ["p."]
+ETAL_NOTATIONS = ["et al."]
+
 # In finnish text citations "according to Rasku" becomes "Raskun mukaan".
 #  it is even worse with for example "Virtanen" becomes "Virtasen mukaan"
 #  therefore it is possible to "eat up" last N words of the text citations
@@ -230,9 +232,16 @@ def _cite_to_str(cite):
 # THE NYCCC DEVELOPER "API" #
 #############################
 
-def init_regexps(and_word_list=AND_WORDS, page=PAGE_NUM_ABBR):
+def init_regexps(
+    and_word_list=AND_WORDS,
+    page_word_list=PAGE_NUM_ABBR_WORDS,
+    etal_word_list=ETAL_NOTATIONS ):
     """ Call this function first to initialize regexps that are used to
     detect name-year style citations from the text.
+
+    The regexes are derived from the c++/boost implementation of user Tex
+    of the Q/A site stackoverflow. Thanks Tex!
+    http://stackoverflow.com/a/10533527/1788710
     """
     global textcitere
     global authorre
@@ -240,29 +249,37 @@ def init_regexps(and_word_list=AND_WORDS, page=PAGE_NUM_ABBR):
     global likere
     global citere
 
-    # The regexes are derived from the c++/boost implementation of user Tex
-    #  of the Q/A site stackoverflow. Thanks Tex!
-    # http://stackoverflow.com/a/10533527/1788710
-    
     page_abbr = ""
-    if page!="":
-        page_abbr = r"(?:"+re.escape(page)+r") +"
+    if page_word_list:
+        page_abbr = r"(?:(?:"+"|".join([re.escape(pw) for pw in page_word_list])+r") *)"
+    if "" in page_word_list:
+        page_abbr+="?" # make optional
+    
+    etal_abbr = ""
+    #(?:(?:et al\.)|(?:ym\.))
+    if etal_word_list:
+        etal_abbr = r"(?:"+"|".join([re.escape(pw) for pw in etal_word_list])+r")"
     
     # Apostrophes like in "D'Alembert" and hyphens like in "Flycht-Eriksson".
-    author = r"([A-Z][a-zA-Z'`-]+)"
+    author = r"([A-Z][a-zA-Z'`-]+)(?:'s)?"
     # " 1990" or "(1990b)" or "1990."
-    year = r" *((?:18|19|20)[0-9][0-9][a-z]?)\.?" 
+    year = r"((?:18|19|20)[0-9][0-9][a-z]?)\.?,?" 
     # Some authors write citations like "A, B, et al. (1995)".
     #  The comma before the "et al" pattern is not rare.
-    etal = r"(?:,? et al.?)"
+    etal = r"(?:,? +"+etal_abbr+",?)"
     # Page number of formats ", 1-3" or ", 1." or ", 112--12"  
-    pagen = r"(?:, +"+page_abbr+r"[0-9]+(?:--?[0-9]+)?\.?)"
+    if page_abbr[0].isalnum():
+        pagen = r"(?: +"+page_abbr+r"[0-9]+(?:-+?[0-9]+)?\.?)"
+    else:
+        pagen = r"(?:"+page_abbr+r"[0-9]+(?:-+?[0-9]+)?\.?)"
     nameconj = r"(?:"+author + r"(?: +"+" +| +".join(and_word_list)+r" +| +& +|, +)?)+"    
-    totcit = nameconj+etal+r"?(?: ?[a-z]+ )*"+year+pagen+r"?"
+    #totcit = nameconj+etal+r"?(?: ?[a-z]+ )*"+year+pagen+r"?",
+    # again, comma before the et al. pattern is not rare
+    totcit = nameconj+etal+r"?,? +"+year+pagen+r"?"
     # Sounds like a citation but does not have names?
-    likecite = r"\(([^\)]*?"+year+pagen+r"?[^\)]*?)\)"
-    # Descartes & Platon et al. write (2003) that ...
-    textcite = nameconj+etal+r"?(?: ?[a-z]+ )*\("+year+pagen+r"?\)" 
+    likecite = r"\(([^\)]*? +"+year+pagen+r"?[^\)]*?)\)"
+    # Descartes & Platon et al. write (2003) that ... (max 3 words)
+    textcite = nameconj+etal+r"?(?: ?[a-z]+){0,3} +\("+year+pagen+r"?\)" 
     
     textcitere = re.compile(textcite)
     authorre = re.compile(author)
@@ -379,7 +396,7 @@ def get_cites_from_file(filename, mutlicite_sep, eat_suffix_cnt=0, max_cites=Non
                 
     return allcites
     
-def cross_check(cites, bib):
+def cross_check(cites, bib, suffix_eat_cnt=0):
     """ This function does the actual verification of the citations and 
     references. 
     
@@ -390,6 +407,10 @@ def cross_check(cites, bib):
     bib 
         is a list of strings. Each string is a reference in some relatively 
         standard name-year bibliography format.
+        
+    eat_suffix_cnt
+        this many characters are removed from the end of authors names for
+         names parsed straight from the text (not in parenthesis).
     """
     
     ## For faster search use the reference only upto the year ##
@@ -455,9 +476,10 @@ def parse_cmd_arguments():
     parser.add_argument('textfile', help='The manuscript as plain text file (1 line = 1 paragraph)', type=_file_exists)
     parser.add_argument('bibfile', help='The bibiliography as plain text file (1 line =  1 reference)', type=_file_exists)
     
-    parser.add_argument('-m', help='Multiple citations separator (eg. Author 1990; Author 1992)', default=MULTICITE_DELIMETER, dest='multi_cite_sep')
+    parser.add_argument('-m', help='Multiple citations separator (eg. Author 1990; Author 1992)', default=MULTICITE_DELIMETER, action='append', dest='multi_cite_sep')
     parser.add_argument('-a', help='Additional word to treat as "and" word (can be given multiple times eg. -a "and" -a "och")', action='append', dest='and_word_list')
-    parser.add_argument('-p', help='Page number abbreviation', default=PAGE_NUM_ABBR, dest="page_num_abbr")
+    parser.add_argument('-p', help='Additional page number designation (can be given multiple times eg. -p "p." -p "page")', action='append', dest="page_num_abbr_list")
+    parser.add_argument('-t', help='Additional "more auhtors" designation to "et al." (can be given multiple times eg. -t "ym." -p "etc.")', action='append', dest="etal_word_list")
     parser.add_argument('-e', help='Eat this many letters from the end of author names of in-text citations (to remove suffixes)', dest='suffix_eat_cnt', default=EAT_SUFFIX_CHARS, type=int)
     parser.add_argument('-v', help='Verbosity level (0-3)', dest='verbosity', default=1, type=int)
 
@@ -482,10 +504,16 @@ def read_files(parsed_args):
 def main():
     parsed_args = parse_cmd_arguments()
     verbosity = parsed_args['verbosity']
+    suffix_eat_cnt = parsed_args['suffix_eat_cnt']
     
     ## Prepare the parsers
     additional_and_words = parsed_args['and_word_list'] if parsed_args['and_word_list'] else []
-    init_regexps(additional_and_words+AND_WORDS, parsed_args['page_num_abbr'])
+    additional_page_words = parsed_args['page_num_abbr_list'] if parsed_args['page_num_abbr_list'] else []
+    etal_word_list = parsed_args['etal_word_list'] if parsed_args['etal_word_list'] else []
+    init_regexps(
+        additional_and_words+AND_WORDS,
+        additional_page_words+PAGE_NUM_ABBR_WORDS,
+        etal_word_list+ETAL_NOTATIONS)
         
     ## Read cites and bibliography from files ##
     ucites, cites, bib = read_files(parsed_args)
@@ -502,7 +530,7 @@ def main():
     
     ## Check for missing refs and cites
     print "Detected problems:"
-    missing_ref_cnt, missing_cite_cnt = cross_check(ucites, bib)
+    missing_ref_cnt, missing_cite_cnt = cross_check(ucites, bib, suffix_eat_cnt)
     
     if verbosity > 0:      
         num_cites = len(ucites)    
