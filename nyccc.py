@@ -227,13 +227,15 @@ def _file_exists(filename):
         return filename
     raise argparse.ArgumentError("%s does not exist" % filename)
     
-def _cite_to_str(cite):
+def _cite_to_str(cite, eat_cnt):
     #unpack
     authors, year, complete = cite
-    if complete:
+    if not complete and eat_cnt>0:
+        for i, a in enumerate(authors):
+            aeat = min(len(a)/2, eat_cnt)
+            authors[i] = a[:-aeat]+"("+a[-aeat:]+"/-)"
+        
         return "(%s %s)" % (", ".join(authors), year)  
-    else:
-        return "(%s... %s)" % ("..., ".join(authors), year)  
         
         
 #############################
@@ -495,7 +497,7 @@ def cross_check(cites, bib, suffix_eat_cnt=0):
                 
         if cite_has_target:
             if len(refs)>1:
-                print "Citation (%s) might not be unique, alternatives..." % _cite_to_str(cite)                
+                print "Citation (%s) might not be unique, alternatives..." % _cite_to_str(cite, suffix_eat_cnt)                
                 for ref in refs:
                     fullref = key_to_bib[ref] 
                     #print fullref 
@@ -503,7 +505,7 @@ def cross_check(cites, bib, suffix_eat_cnt=0):
             for ref in refs:
                 refcnt[ref] += 1
         else:
-            print "No reference for citation (%s)" %  _cite_to_str(cite)
+            print "No reference for citation (%s)" %  _cite_to_str(cite, suffix_eat_cnt)
             missing_ref_cnt += 1
     print 
     
