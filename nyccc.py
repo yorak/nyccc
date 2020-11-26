@@ -443,6 +443,10 @@ def get_cites_from_file(filename, mutlicite_sep, max_cites=None, verbosity=0):
                 
     return allcites
     
+def _get_author_without_suffix(author, suffix_length):
+    suffix_length = min(len(author)/2, suffix_length)
+    return author[:-suffix_length]
+    
 def cross_check(cites, bib, suffix_eat_cnt=0):
     """ This function does the actual verification of the citations and 
     references. 
@@ -457,12 +461,15 @@ def cross_check(cites, bib, suffix_eat_cnt=0):
         
     eat_suffix_cnt
         this many characters are removed from the end of authors names for
-         names parsed straight from the text (not in parenthesis).
+         names parsed straight from the text (not in parenthesis). This is
+         needed, e.g., to properly cross check names when finnish possessive
+         suffixes are used.
     """
     
     ## For faster search use the reference only upto the year ##
     bib_keys = []
     key_to_bib = {}
+    key_to_non_uniq_bibs = {}
     for bibref in bib:
         key = _bib_to_key(bibref)
         bib_keys.append( key )
@@ -470,6 +477,10 @@ def cross_check(cites, bib, suffix_eat_cnt=0):
             print "Non-unique or duplicate bibliography entry:"
             print "/t"+bibref
             print "/t"+key_to_bib[key]
+            
+            if not key in key_to_non_uniq_bibs: 
+                key_to_non_uniq_bibs[key] = [key_to_bib[key]]
+            key_to_non_uniq_bibs[key].append(bibref)
         else:
             key_to_bib[key] = bibref
     
@@ -488,9 +499,14 @@ def cross_check(cites, bib, suffix_eat_cnt=0):
         
         # For incomplete (text based) references, allow some characters to 
         #  be eaten from the end of the author names
+        # This is e.g. for finnish possessive suffixes:
+        #   "Raskun (2019) mukaan", i.e., According to Rasku (2019)
+        #  Note, however that half of the letters are still always used.
+        #  (this is a special case for very short names).
         if not cite_has_target and not complete:
             for eat in range(1, suffix_eat_cnt+1):
-                authors_wo_suffix = [author[:-eat] for author in authors]
+                authors_wo_suffix = [_get_author_without_suffix(author,eat)
+                                     for author in authors]
                 # Find the citations in the bibliography
                 cite_has_target, refs = _find_cite_in_bib(authors_wo_suffix, year, bib_keys, bib)
                 if cite_has_target:
@@ -499,8 +515,17 @@ def cross_check(cites, bib, suffix_eat_cnt=0):
         if cite_has_target:
             if len(refs)>1:
                 print "Citation (%s) might not be unique, alternatives..." % _cite_to_str(cite, suffix_eat_cnt)                
+                fullrefs = []
                 for ref in refs:
-                    fullref = key_to_bib[ref] 
+                    available_refs = key_to_non_uniq_bibs[ref] if ref in key_to_non_uniq_bibs else [key_to_bib[ref]]
+                    for fullref in available_refs:
+                        already_added = fullref in fullrefs 
+                        single_author_is_first = False
+                        # TODO: whait if it is et.al. cite?    
+                        if not already_added: 
+                            fullrefs.append(fullref) 
+                    
+                for fullref in fullrefs: 
                     #print fullref 
                     print "\t%s...'" % (fullref[:min(len(fullref), 60)])  
             for ref in refs:
