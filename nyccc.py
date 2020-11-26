@@ -127,6 +127,10 @@ example 2:
     
 """
 
+# TODO: in addition to complete / incomplete flag, one should have a flag if
+#  et.al. was detected. If not, a exact match for all authors is required. 
+#  Hence, replace _complete_ in the tuple with flags? 
+
 import re
 import os
 import argparse
