@@ -271,7 +271,8 @@ def init_regexps(
         etal_abbr = r"(?:"+"|".join([re.escape(pw) for pw in etal_word_list])+r")"
         
     # Apostrophes like in "D'Alembert" and hyphens like in "Flycht-Eriksson".
-    author = r"([A-Z][a-zA-Z'`-]+)(?:'s)?"
+    # Word txt export seems to produce question marks "?" in some names.
+    author = r"([A-Z\?][a-zA-Z'`\-\?]+)(?:'s)?"
     # " 1990" or "(1990b)" or "1990."
     year = r"((?:18|19|20)[0-9][0-9][a-z]?)\.?,?" 
     # Some authors write citations like "A, B, et al. (1995)".
