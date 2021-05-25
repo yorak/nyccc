@@ -130,6 +130,8 @@ example 2:
 # TODO: in addition to complete / incomplete flag, one should have a flag if
 #  et.al. was detected. If not, a exact match for all authors is required. 
 #  Hence, replace _complete_ in the tuple with flags? 
+# If multiple works of the same author have been cited:
+#  (Colwell 1998; 1999; 2000) generate multiple cites.
 
 import re
 import os
@@ -178,7 +180,7 @@ def _bib_to_key(bibref):
     yearmatch = yearre.search(bibref)       
     if not yearmatch:
         shortref = bibref[:min(len(bibref),60)]
-        print "Reference '%s...' has no publication year" % shortref
+        print "WARNING: Reference '%s...' has no publication year" % shortref
         end = len(bibref)-1
     else:
         end = yearmatch.span()[1]   
@@ -216,6 +218,8 @@ def _find_cite_in_bib(authors, year, bib_keys, full_bib=None):
             if match and year in full_ref:
                 cite_matched = True
                 matched_refs.append(_bib_to_key(full_ref))
+                
+                #print("DEBUG: fullbibmatch", authors, year)
     
     return cite_matched, matched_refs
 
@@ -238,8 +242,7 @@ def _cite_to_str(cite, eat_cnt):
         for i, a in enumerate(authors):
             aeat = min(len(a)/2, eat_cnt)
             authors[i] = a[:-aeat]+"("+a[-aeat:]+"/-)"
-        
-        return "(%s %s)" % (", ".join(authors), year)  
+    return "(%s %s)" % (", ".join(authors), year)  
         
         
 #############################
@@ -265,7 +268,7 @@ def init_regexps(
 
     page_abbr = ""
     if page_word_list:
-        page_abbr = r"(?:(?:"+"|".join([re.escape(pw) for pw in page_word_list])+r") *)"
+        page_abbr = r"(?:"+"|".join([re.escape(pw) for pw in page_word_list])+r")"
     if "" in page_word_list:
         page_abbr+="?" # make optional
     
@@ -278,28 +281,29 @@ def init_regexps(
     # Word txt export seems to produce question marks "?" in some names.
     author = r"([A-Z\?][a-zA-Z'`\-\?]+)(?:'s)?"
     # " 1990" or "(1990b)" or "1990."
-    year = r"((?:18|19|20)[0-9][0-9][a-z]?)\.?,?" 
+    year = r"(?:((?:18|19|20)[0-9][0-9][a-z]?)\.?,? ?)" 
     # Some authors write citations like "A, B, et al. (1995)".
     #  The comma before the "et al" pattern is not rare.
     etal = r"(?:,? +"+etal_abbr+",?)"
-    # Page number of formats ", 1-3" or ", 1." or ", 112--12"  
+    # Optional page number. Of formats ", 1-3" or ", 1." or ", 112--12"  
     if page_abbr[0].isalnum():
-        pagen = r"(?: +"+page_abbr+r"[0-9]+(?:-+?[0-9]+)?\.?)"
+        pagen = r"(?: +(?:"+page_abbr+r" *([0-9]+(?:-+?[0-9]+)?[ \.,]*)))?"
     else:
-        pagen = r"(?:"+page_abbr+r"[0-9]+(?:-+?[0-9]+)?\.?)"
+        pagen = r"(?: *(?:"+page_abbr+r" *([0-9]+(?:-+?[0-9]+)?[ \.,]*)))?"
     nameconj = r"(?:"+author + r"(?: +"+" +| +".join(and_word_list)+r" +| +& +|, +)?)+"    
     #totcit = nameconj+etal+r"?(?: ?[a-z]+ )*"+year+pagen+r"?",
     # again, comma before the et al. pattern is not rare
-    totcit = nameconj+etal+r"?,? +"+year+pagen+r"?"
+    totcit = nameconj+etal+r"?,? +"+year+"+"+pagen+r"?"
     # Sounds like a citation but does not have names?
-    likecite = r"\(([^\)]*? +"+year+pagen+r"?[^\)]*?)\)"
+    likecite = r"\(([^\)]*? +"+year+"+"+pagen+r"?[^\)]*?)\)"
     # Descartes & Platon et al. write (2003) that ... (max 3 words)
-    textcite = nameconj+etal+r"?(?: ?[a-z]+){0,3} +\("+year+pagen+r"?\)" 
+    textcite = nameconj+etal+r"?(?: ?[a-z]+){0,3} +\("+year+"+"+pagen+r"\)" 
     
     textcitere = re.compile(textcite)
     authorre = re.compile(author)
     yearre = re.compile(year)
     likere = re.compile(likecite)
+    
     citere = re.compile(totcit)
     
 def get_bib_from_file(filename, verbosity=0):
@@ -479,8 +483,8 @@ def cross_check(cites, bib, suffix_eat_cnt=0):
         bib_keys.append( key )
         if key in key_to_bib: 
             print "Non-unique or duplicate bibliography entry:"
-            print "/t"+bibref
-            print "/t"+key_to_bib[key]
+            print "\t"+bibref
+            print "\t"+key_to_bib[key]
             
             if not key in key_to_non_uniq_bibs: 
                 key_to_non_uniq_bibs[key] = [key_to_bib[key]]
@@ -521,6 +525,7 @@ def cross_check(cites, bib, suffix_eat_cnt=0):
                 print "Citation (%s) might not be unique, alternatives..." % _cite_to_str(cite, suffix_eat_cnt)                
                 fullrefs = []
                 for ref in refs:
+                    #print("DEBUG", cite, ref)
                     available_refs = key_to_non_uniq_bibs[ref] if ref in key_to_non_uniq_bibs else [key_to_bib[ref]]
                     for fullref in available_refs:
                         already_added = fullref in fullrefs 
@@ -535,7 +540,7 @@ def cross_check(cites, bib, suffix_eat_cnt=0):
             for ref in refs:
                 refcnt[ref] += 1
         else:
-            print "No reference for citation (%s)" %  _cite_to_str(cite, suffix_eat_cnt)
+            print "No reference for citation %s" % _cite_to_str(cite, suffix_eat_cnt)
             missing_ref_cnt += 1
     print 
     
